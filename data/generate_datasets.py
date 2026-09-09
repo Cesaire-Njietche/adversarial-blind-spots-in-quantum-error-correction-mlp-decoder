@@ -13,9 +13,11 @@ Arguments :
 
 
 Generated files :
-    A single .npz archive at --output containing:
+    A  .npz archive at --output containing:
         - "labels"   : shape (samples, 1), logical observable flips (0/1)
         - "features" : shape (samples, (d²-1)*rounds), detector (syndrome) bits
+    A .json file containing data needed to re-create circuit used to generate the dataset (distance, rounds, noise model type and parameters). This file is saved next to the .npz file with the same name but with a .json extension.
+
 
 With --verbose, a short dataset_analytics() summary (logical flip rate,
 mean syndrome weight, fraction of trivial syndromes) is printed before saving.
@@ -24,9 +26,17 @@ import argparse
 import stim 
 import numpy as np
 from noise_models import generate_noise_constants as nm
+import json
+import os 
 
 
-def create_circuit() :
+def create_circuit(
+        distance, 
+        rounds, 
+        noise_type, 
+        noise_default, 
+        verbose=False
+        ):
     """
     Build the stim.Circuit used to generate the dataset.
 
@@ -35,20 +45,23 @@ def create_circuit() :
     logical X errors caused by bit flips). Noise parameters are looked up
     from noise_models.py based on the --noise CLI argument, keeping the
     actual probabilities out of this file.
+
+
     """
     circuit = stim.Circuit.generated(
         "surface_code:rotated_memory_z", # Protect a qubit stored in the z basis to detect a bit flip (logical x error)
-        rounds = args.rounds,
-        distance = args.distance,
-        #Note that this can be changed to be more specific (see noise_models.py for more details)
+        rounds = rounds,
+        distance = distance,
+
+        #Note that following line can be changed to be more specific (see noise_models.py for more details)
         **nm(
-            noise_type=args.noise,
-            default=0.05
+            noise_type=noise_type,
+            default=noise_default
         )
 
     )
     if args.verbose:
-        print(f"Generated circuit with distance={args.distance}, rounds={args.rounds}, noise={args.noise}")
+        print(f"Generated circuit with distance={distance}, rounds={rounds}, noise={noise_type} and default noise value={noise_default}")
         print("########################################################")
     return circuit
 
@@ -85,12 +98,33 @@ def create_dataset(labels, features):
 
 
 def save_dataset(dataset):
-    """Write the dataset dict to args.output as a compressed-free .npz archive."""
+    """
+    Write the dataset dict to args.output as a compressed-free .npz archive.
+    """
     np.savez(
         args.output,
         labels=dataset["labels"],
         features=dataset["features"],
     )
+
+def save_metadata(dataset_path, distance, rounds, noise_type, noise_default=0.05):
+    """
+    Write a small JSON sidecar next to the dataset with the parameters used
+    to build the circuit that generated it. Anything that needs to rebuild
+    an identical circuit later (e.g. an MWPM baseline decoder) reads this
+    file instead of guessing/hardcoding the settings.
+    """
+    metadata = {
+        "distance": distance,
+        "rounds": rounds,
+        "noise_type": noise_type,
+        "noise_default": noise_default,
+    }
+
+    #remove extension
+    metadata_path = os.path.splitext(dataset_path)[0] + ".json"
+    with open(metadata_path, "w") as f:
+        json.dump(metadata, f)
 
 
 def dataset_analytics(dataset):
@@ -183,7 +217,8 @@ if __name__ == "__main__":
         print("########################################################")
 
 
-    circuit = create_circuit()
+
+    circuit = create_circuit(args.distance, args.rounds, args.noise, noise_default=0.05, verbose=args.verbose)
     sampler = create_sampler(circuit)
     labels, features = sample(sampler)
     dataset = create_dataset(labels, features)
@@ -192,3 +227,4 @@ if __name__ == "__main__":
         dataset_analytics(dataset)
 
     save_dataset(dataset)
+    save_metadata(args.output, args.distance, args.rounds, args.noise)

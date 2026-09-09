@@ -192,6 +192,3 @@ if __name__ == "__main__":
         dataset_analytics(dataset)
 
     save_dataset(dataset)
-
-    if args.verbose:
-        print("########################################################")

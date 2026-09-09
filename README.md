@@ -209,6 +209,44 @@ Best val accuracy: 0.9981 (epoch 3) -> example_run/trial_001/model.pth
 Best trial: example_run/trial_000 (val_accuracy=0.9981)
 [ble: elapsed 27.437s (CPU 109.9%)] uv run decoder/tune.py --dataset example_run/dataset.npz --trials 2 --epochs 3 --output-dir example_run/ --verbose
 
+
+adversarial-blind-spots-in-quantum-error-correction-mlp-decoder on  Victor [✘!+?] is 📦 v0.1.0 via 🐍 v3.13.5 took 1m59s 
+❯ uv run decoder/train.py --dataset example_run/dataset.npz --config example_run/trial_000/config.json --output-dir example_run/ --epochs 30 --verbose
+Using device: cuda
+Epoch 1/30: train_loss=0.0425 val_loss=0.0104 val_acc=0.9979
+Epoch 2/30: train_loss=0.0113 val_loss=0.0094 val_acc=0.9980
+Epoch 3/30: train_loss=0.0106 val_loss=0.0090 val_acc=0.9981
+Epoch 4/30: train_loss=0.0101 val_loss=0.0091 val_acc=0.9981
+Epoch 5/30: train_loss=0.0096 val_loss=0.0090 val_acc=0.9981
+Epoch 6/30: train_loss=0.0094 val_loss=0.0090 val_acc=0.9980
+Epoch 7/30: train_loss=0.0091 val_loss=0.0087 val_acc=0.9981
+Epoch 8/30: train_loss=0.0091 val_loss=0.0085 val_acc=0.9981
+Epoch 9/30: train_loss=0.0088 val_loss=0.0085 val_acc=0.9981
+Epoch 10/30: train_loss=0.0086 val_loss=0.0084 val_acc=0.9981
+Epoch 11/30: train_loss=0.0085 val_loss=0.0088 val_acc=0.9980
+Epoch 12/30: train_loss=0.0083 val_loss=0.0088 val_acc=0.9981
+Epoch 13/30: train_loss=0.0084 val_loss=0.0085 val_acc=0.9981
+Epoch 14/30: train_loss=0.0082 val_loss=0.0083 val_acc=0.9981
+Epoch 15/30: train_loss=0.0081 val_loss=0.0089 val_acc=0.9980
+Epoch 16/30: train_loss=0.0081 val_loss=0.0089 val_acc=0.9981
+Epoch 17/30: train_loss=0.0079 val_loss=0.0084 val_acc=0.9981
+Epoch 18/30: train_loss=0.0079 val_loss=0.0083 val_acc=0.9981
+Epoch 19/30: train_loss=0.0079 val_loss=0.0084 val_acc=0.9981
+Epoch 20/30: train_loss=0.0078 val_loss=0.0085 val_acc=0.9981
+Epoch 21/30: train_loss=0.0076 val_loss=0.0084 val_acc=0.9980
+Epoch 22/30: train_loss=0.0077 val_loss=0.0085 val_acc=0.9981
+Epoch 23/30: train_loss=0.0076 val_loss=0.0084 val_acc=0.9981
+Epoch 24/30: train_loss=0.0075 val_loss=0.0084 val_acc=0.9980
+Epoch 25/30: train_loss=0.0074 val_loss=0.0087 val_acc=0.9980
+Epoch 26/30: train_loss=0.0075 val_loss=0.0085 val_acc=0.9980
+Epoch 27/30: train_loss=0.0075 val_loss=0.0085 val_acc=0.9981
+Epoch 28/30: train_loss=0.0074 val_loss=0.0084 val_acc=0.9981
+Epoch 29/30: train_loss=0.0072 val_loss=0.0086 val_acc=0.9979
+Epoch 30/30: train_loss=0.0073 val_loss=0.0086 val_acc=0.9980
+Best val accuracy: 0.9981 (epoch 27) -> example_run/model.pth
+[ble: elapsed 111.179s (CPU 104.7%)] uv run decoder/train.py --dataset example_run/dataset.npz --config example_run/trial_000/config.json --output-dir example_run/ --epochs 30 --verbose
+
+
 ```
 
 ---

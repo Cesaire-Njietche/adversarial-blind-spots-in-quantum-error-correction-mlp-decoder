@@ -139,7 +139,7 @@ Rebuilds the circuit from the dataset's `.json` file, decodes the syndromes in `
 If `--dataset` is omitted, `--samples` (default 100,000) fresh shots are sampled directly from the rebuilt circuit instead — useful for a quick standalone MWPM sanity check, but **not** for a fair comparison against another decoder, since that draws an independent random syndrome set.
 > [!WARNING]
 > **Attention**
-> Always pass `--dataset` pointing at a shared `.npz` when comparing MWPM against the MLP.
+> Always pass `--dataset` pointing at a shared `.npz` when comparing MWPM against the MLP. This is exactly why `config.json` keeps a `dataset_path` reference (see the note in step 2) — it's what tells you which `.npz` to point `--dataset` at for a fair, same-syndrome comparison.
 
 ### 2c — Analyze a trained model
 
@@ -150,21 +150,9 @@ Loads a run's `config.json`/`model.pth` (from step 2), rebuilds the same model +
 > - **Dataset generation (step 1)** has no `--seed` at all — `generate_datasets.py` samples the circuit unseeded, so re-running it produces a *different* dataset every time, even with identical arguments.
 > - **`train.py --seed`** seeds `torch`/`numpy` for weight initialization *and* the stratified train/val split (via `sklearn`'s `random_state`). If omitted it reuses the seed recorded in `--config` when there is one (so retraining a saved `config.json` reproduces that exact run), otherwise it defaults to 42 — this is what makes a training run reproducible given the same dataset and config.
 > - **`tune.py --seed`** (default 42) seeds one master RNG that both picks which configs the search tries *and* derives each trial's own training seed — reproduces the whole search, not just one trial.
-> - **The notebook's `EVAL_SEEDS`** (`1000`–`1004`) seed the independently-generated evaluation sets in `model_analysis.ipynb`, deliberately distinct from the training seed so they can't accidentally overlap with data the model trained on.
 >
 > None of these seed the dataset itself, so "reproducible training" only holds as long as you keep the original `.npz` around (see the note above) rather than regenerating it.
 
-### 3 — Run the SA attack
-
-```bash
-python experiments/run_attack.py --distance 3 --budget 3 --restarts 50
-```
-
-### 4 — Run the decision boundary analysis
-
-```bash
-python experiments/run_boundary_analysis.py --distance 3 --shots 2000000
-```
 
 ### Example of a full run for parameters optimisation : 
 ```bash 
@@ -248,6 +236,20 @@ Best val accuracy: 0.9981 (epoch 27) -> example_run/model.pth
 
 
 ```
+
+### 3 — Run the SA attack
+
+```bash
+python experiments/run_attack.py --distance 3 --budget 3 --restarts 50
+```
+
+### 4 — Run the decision boundary analysis
+
+```bash
+python experiments/run_boundary_analysis.py --distance 3 --shots 2000000
+```
+
+
 
 ---
 

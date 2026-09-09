@@ -5,3 +5,8 @@ uv.lock
 .venv/
 .vscode/
 stim_me.ipynb
+*.npz
+data/*.npz
+data/__pycache__/
+data/*.json
+*.json

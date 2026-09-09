@@ -60,7 +60,7 @@ def create_circuit(
         )
 
     )
-    if args.verbose:
+    if verbose:
         print(f"Generated circuit with distance={distance}, rounds={rounds}, noise={noise_type} and default noise value={noise_default}")
         print("########################################################")
     return circuit
@@ -71,9 +71,9 @@ def create_sampler(circuit) :
     return sampler
 
 
-def sample(sampler) :
+def sample(sampler, n_samples, verbose=False) :
     """
-    Draw args.samples shots from the sampler.
+    Draw n_samples shots from the sampler.
 
     Returns:
         labels   : np.ndarray, shape (samples, 1)              — logical observable flips (0/1)
@@ -81,9 +81,10 @@ def sample(sampler) :
     """
     #syndromes shape : (samples, (d²-1)*rounds)
     #obs shape : (samples, 1)
-    syndromes, obs = sampler.sample(args.samples, separate_observables=True)
-    print(f"Shape of the syndromes : {syndromes.shape}")
-    print(f"Shape of the observables : {obs.shape}")
+    syndromes, obs = sampler.sample(n_samples, separate_observables=True)
+    if verbose:
+        print(f"Shape of the syndromes : {syndromes.shape}")
+        print(f"Shape of the observables : {obs.shape}")
     labels = obs.astype(np.float32)
     features = syndromes.astype(np.float32)
 
@@ -220,7 +221,7 @@ if __name__ == "__main__":
 
     circuit = create_circuit(args.distance, args.rounds, args.noise, noise_default=0.05, verbose=args.verbose)
     sampler = create_sampler(circuit)
-    labels, features = sample(sampler)
+    labels, features = sample(sampler, args.samples, verbose=args.verbose)
     dataset = create_dataset(labels, features)
 
     if args.verbose:

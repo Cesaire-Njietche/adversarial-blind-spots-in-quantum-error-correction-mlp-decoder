@@ -11,7 +11,7 @@ def generate_noise_constants(
         after_reset_flip_probability=None,
         before_measure_flip_probability=None,
         before_round_data_depolarization=None,
-        default=0.05,
+        default=0.005,
         ):
 
     """
@@ -30,7 +30,7 @@ def generate_noise_constants(
         before_round_data_depolarization : float, optional
             The depolarization (uniform on X, Y, Z) probability before each round of data qubit operations. Used in both noise models. Default is None.
         default : float, optional
-            The default value to use for any unspecified noise model parameters. Default is 0.05
+            The default value to use for any unspecified noise model parameters. Default is 0.005
     @returns:
         dict
             A dictionary containing the noise model parameters, with keys corresponding to the parameter names and values corresponding to the specified or default values. 

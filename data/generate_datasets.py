@@ -65,9 +65,17 @@ def create_circuit(
         print("########################################################")
     return circuit
 
-def create_sampler(circuit) :
-    """Compile a detector sampler from the circuit (used to draw syndrome/observable samples)."""
-    sampler = circuit.compile_detector_sampler()
+def create_sampler(circuit, seed=None) :
+    """
+    Compile a detector sampler from the circuit (used to draw syndrome/observable samples).
+
+    @args:
+        seed : int, optional
+            Pass an explicit seed to get reproducible sampling (e.g. drawing
+            several independent evaluation sets from the same circuit, one
+            seed each). Default None lets stim pick its own randomness.
+    """
+    sampler = circuit.compile_detector_sampler(seed=seed)
     return sampler
 
 
@@ -108,7 +116,7 @@ def save_dataset(dataset):
         features=dataset["features"],
     )
 
-def save_metadata(dataset_path, distance, rounds, noise_type, noise_default=0.05):
+def save_metadata(dataset_path, distance, rounds, noise_type, noise_default=0.005):
     """
     Write a small JSON sidecar next to the dataset with the parameters used
     to build the circuit that generated it. Anything that needs to rebuild
@@ -193,6 +201,13 @@ def parse_args():
         help="Noise model to use either \"depolarizing\" or \"circuit-level\" (default: depolarizing)."
     )
     parser.add_argument(
+        "--noise-default",
+        type=float,
+        default=0.005,
+        help="Physical error rate applied to any noise parameter not explicitly overridden "
+             "(see noise_models.py). Default: 0.005 (0.5%%)."
+    )
+    parser.add_argument(
         "--output",
         type=str,
         help="Output file path (e.g., ./export/dataset.npz) (required)",
@@ -219,7 +234,7 @@ if __name__ == "__main__":
 
 
 
-    circuit = create_circuit(args.distance, args.rounds, args.noise, noise_default=0.05, verbose=args.verbose)
+    circuit = create_circuit(args.distance, args.rounds, args.noise, noise_default=args.noise_default, verbose=args.verbose)
     sampler = create_sampler(circuit)
     labels, features = sample(sampler, args.samples, verbose=args.verbose)
     dataset = create_dataset(labels, features)
@@ -228,4 +243,4 @@ if __name__ == "__main__":
         dataset_analytics(dataset)
 
     save_dataset(dataset)
-    save_metadata(args.output, args.distance, args.rounds, args.noise)
+    save_metadata(args.output, args.distance, args.rounds, args.noise, noise_default=args.noise_default)

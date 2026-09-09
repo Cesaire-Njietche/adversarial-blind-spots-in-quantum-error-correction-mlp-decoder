@@ -10,3 +10,4 @@ data/*.npz
 data/__pycache__/
 data/*.json
 *.json
+decoder/__pycache__/

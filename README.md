@@ -135,7 +135,7 @@ jupyter notebook notebook/model_analysis.ipynb
 
 Loads a run's `config.json`/`model.pth` (from step 2), rebuilds the same model + validation split, and plots the training/validation loss curves and validation performance (confusion matrix, prediction-probability distribution).
 
-<summary>2d — Full worked example (data → MWPM baseline → tune → retrain)</summary>
+### 2d — Full worked example (data → MWPM baseline → tune → retrain)</summary>
 
 ```bash
 # 1. Generate data

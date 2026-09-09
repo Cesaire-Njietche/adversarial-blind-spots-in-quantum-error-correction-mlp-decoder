@@ -4,3 +4,4 @@ uv.lock
 .conda/
 .venv/
 .vscode/
+stim_me.ipynb

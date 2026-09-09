@@ -135,7 +135,6 @@ jupyter notebook notebook/model_analysis.ipynb
 
 Loads a run's `config.json`/`model.pth` (from step 2), rebuilds the same model + validation split, and plots the training/validation loss curves and validation performance (confusion matrix, prediction-probability distribution).
 
-<details>
 <summary>2d — Full worked example (data → MWPM baseline → tune → retrain)</summary>
 
 ```bash
@@ -155,9 +154,6 @@ uv run decoder/train.py --dataset example_run/dataset.npz --config example_run/t
 #   Best val accuracy: 0.9981 (epoch 27) -> example_run/model.pth
 ```
 
-At this low noise level (`--noise-default 0.005`, the pipeline's default) the MLP and MWPM are both near-perfect, so the tuning search finds a good config in just 3 epochs — this example is meant to show the four pieces fitting together end to end, not to represent a hard decoding regime (see step 1's `--noise-default` for how to make the problem harder).
-
-</details>
 
 ### 3 — Run the SA attack
 

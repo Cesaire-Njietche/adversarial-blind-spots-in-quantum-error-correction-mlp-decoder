@@ -2,7 +2,7 @@
 Author : Victor Fairon
 Date : 2026-09-09
 
-This file simply defines both types of noise model's parameters used in the generation of the datasets. The parameters can be 
+This file simply defines both types of noise model's parameters used in the generation of the datasets. It defines one function that can be called to return a dict with the different noise parameters.
 """
 
 def generate_noise_constants(

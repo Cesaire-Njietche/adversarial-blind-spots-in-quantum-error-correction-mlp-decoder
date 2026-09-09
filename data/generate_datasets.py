@@ -9,6 +9,7 @@ Arguments :
     --rounds
     --samples
     --noise
+    --noise-default
     --output (the file path)
 
 

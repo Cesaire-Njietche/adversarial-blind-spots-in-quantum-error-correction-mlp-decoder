@@ -74,8 +74,8 @@ Python 3.10+ recommended.
 ### 1 — Generate training data
 
 ```bash
-python data/generate_datasets.py --distance 3 --rounds 6 --samples 1000000 --noise depolarizing --output data/train_depolarizing.npz
-python data/generate_datasets.py --distance 3 --rounds 6 --samples 1000000 --noise circuit-level --output data/train_circuit_level.npz --verbose
+python data/generate_datasets.py --distance 3 --rounds 9 --samples 1000000 --noise depolarizing --output data/train_depolarizing.npz
+python data/generate_datasets.py --distance 3 --rounds 9 --samples 1000000 --noise circuit-level --output data/train_circuit_level.npz --verbose
 ```
 
 Arguments: `--distance` (default 3), `--rounds` (default 9), `--samples` (default 100,000), `--noise` (`depolarizing` or `circuit-level`) (default `depolarizing`), `--noise-default` (physical error rate applied to any noise parameter not explicitly overridden, default 0.005 — see `noise_models.py`), `--output` (required), `--verbose`.
@@ -154,88 +154,26 @@ Loads a run's `config.json`/`model.pth` (from step 2), rebuilds the same model +
 > None of these seed the dataset itself, so "reproducible training" only holds as long as you keep the original `.npz` around (see the note above) rather than regenerating it.
 
 
-### Example of a full run for parameters optimisation : 
-```bash 
+### 2d — Example of a full run (data → MWPM baseline → tune → retrain)
 
-adversarial-blind-spots-in-quantum-error-correction-mlp-decoder on  Victor [✘!+?] is 📦 v0.1.0 via 🐍 v3.13.5 
-❯ uv run data/generate_datasets.py --distance 3 --rounds 9 --samples 1000000 --noise depolarizing --output example_run/dataset.npz
-Generating noise constants for noise model: depolarizing with default value: 0.005
-########################################################
+```bash
+# 1. Generate data
+uv run data/generate_datasets.py --distance 3 --rounds 9 --samples 1000000 --noise depolarizing --output example_run/dataset.npz
 
-adversarial-blind-spots-in-quantum-error-correction-mlp-decoder on  Victor [✘!+?] is 📦 v0.1.0 via 🐍 v3.13.5 
-❯ uv run decoder/mwpm_reference.py --dataset example_run/dataset.npz --metadata example_run/dataset.json --prediction-path example_run/pred_mwpm.npz --verbose
-########################################################
-Loaded circuit metadata from example_run/dataset.json: {'distance': 3, 'rounds': 9, 'noise_type': 'depolarizing', 'noise_default': 0.005}
-########################################################
-Generating noise constants for noise model: depolarizing with default value: 0.005
-########################################################
-Generated circuit with distance=3, rounds=9, noise=depolarizing and default noise value=0.005
-########################################################
-Loading syndromes to decode from example_run/dataset.npz
-########################################################
-MWPM baseline results
-  Shots              : 1000000
-  Logical error rate : 0.001720
-########################################################
-Saved predictions to example_run/pred_mwpm.npz
+# 2b. MWPM baseline on that data
+uv run decoder/mwpm_reference.py --dataset example_run/dataset.npz --metadata example_run/dataset.json --prediction-path example_run/pred_mwpm.npz --verbose
+#   MWPM baseline results: Shots=1000000, Logical error rate=0.001720
 
+# 2a. Short hyperparameter search (3 epochs/trial, just to pick a config)
+uv run decoder/tune.py --dataset example_run/dataset.npz --trials 2 --epochs 3 --output-dir example_run/ --verbose
+#   Best trial: example_run/trial_000 (val_accuracy=0.9981)
 
-adversarial-blind-spots-in-quantum-error-correction-mlp-decoder on  Victor [✘!+?] is 📦 v0.1.0 via 🐍 v3.13.5 
-❯ uv run decoder/tune.py --dataset example_run/dataset.npz --trials 2 --epochs 3 --output-dir example_run/ --verbose
-[1/2] config={'hidden_sizes': (128, 64), 'dropout': (0.2, 0.1), 'lr': 0.003} seed=929893137
-Using device: cuda
-Epoch 1/3: train_loss=0.0425 val_loss=0.0104 val_acc=0.9979
-Epoch 2/3: train_loss=0.0113 val_loss=0.0094 val_acc=0.9980
-Epoch 3/3: train_loss=0.0106 val_loss=0.0090 val_acc=0.9981
-Best val accuracy: 0.9981 (epoch 3) -> example_run/trial_000/model.pth
-[2/2] config={'hidden_sizes': (256, 128, 64, 32), 'dropout': (0.0, 0.2, 0.0, 0.0), 'lr': 0.003} seed=2095133045
-Using device: cuda
-Epoch 1/3: train_loss=0.0338 val_loss=0.0097 val_acc=0.9979
-Epoch 2/3: train_loss=0.0092 val_loss=0.0089 val_acc=0.9980
-Epoch 3/3: train_loss=0.0082 val_loss=0.0085 val_acc=0.9981
-Best val accuracy: 0.9981 (epoch 3) -> example_run/trial_001/model.pth
-Best trial: example_run/trial_000 (val_accuracy=0.9981)
-[ble: elapsed 27.437s (CPU 109.9%)] uv run decoder/tune.py --dataset example_run/dataset.npz --trials 2 --epochs 3 --output-dir example_run/ --verbose
-
-
-adversarial-blind-spots-in-quantum-error-correction-mlp-decoder on  Victor [✘!+?] is 📦 v0.1.0 via 🐍 v3.13.5 took 1m59s 
-❯ uv run decoder/train.py --dataset example_run/dataset.npz --config example_run/trial_000/config.json --output-dir example_run/ --epochs 30 --verbose
-Using device: cuda
-Epoch 1/30: train_loss=0.0425 val_loss=0.0104 val_acc=0.9979
-Epoch 2/30: train_loss=0.0113 val_loss=0.0094 val_acc=0.9980
-Epoch 3/30: train_loss=0.0106 val_loss=0.0090 val_acc=0.9981
-Epoch 4/30: train_loss=0.0101 val_loss=0.0091 val_acc=0.9981
-Epoch 5/30: train_loss=0.0096 val_loss=0.0090 val_acc=0.9981
-Epoch 6/30: train_loss=0.0094 val_loss=0.0090 val_acc=0.9980
-Epoch 7/30: train_loss=0.0091 val_loss=0.0087 val_acc=0.9981
-Epoch 8/30: train_loss=0.0091 val_loss=0.0085 val_acc=0.9981
-Epoch 9/30: train_loss=0.0088 val_loss=0.0085 val_acc=0.9981
-Epoch 10/30: train_loss=0.0086 val_loss=0.0084 val_acc=0.9981
-Epoch 11/30: train_loss=0.0085 val_loss=0.0088 val_acc=0.9980
-Epoch 12/30: train_loss=0.0083 val_loss=0.0088 val_acc=0.9981
-Epoch 13/30: train_loss=0.0084 val_loss=0.0085 val_acc=0.9981
-Epoch 14/30: train_loss=0.0082 val_loss=0.0083 val_acc=0.9981
-Epoch 15/30: train_loss=0.0081 val_loss=0.0089 val_acc=0.9980
-Epoch 16/30: train_loss=0.0081 val_loss=0.0089 val_acc=0.9981
-Epoch 17/30: train_loss=0.0079 val_loss=0.0084 val_acc=0.9981
-Epoch 18/30: train_loss=0.0079 val_loss=0.0083 val_acc=0.9981
-Epoch 19/30: train_loss=0.0079 val_loss=0.0084 val_acc=0.9981
-Epoch 20/30: train_loss=0.0078 val_loss=0.0085 val_acc=0.9981
-Epoch 21/30: train_loss=0.0076 val_loss=0.0084 val_acc=0.9980
-Epoch 22/30: train_loss=0.0077 val_loss=0.0085 val_acc=0.9981
-Epoch 23/30: train_loss=0.0076 val_loss=0.0084 val_acc=0.9981
-Epoch 24/30: train_loss=0.0075 val_loss=0.0084 val_acc=0.9980
-Epoch 25/30: train_loss=0.0074 val_loss=0.0087 val_acc=0.9980
-Epoch 26/30: train_loss=0.0075 val_loss=0.0085 val_acc=0.9980
-Epoch 27/30: train_loss=0.0075 val_loss=0.0085 val_acc=0.9981
-Epoch 28/30: train_loss=0.0074 val_loss=0.0084 val_acc=0.9981
-Epoch 29/30: train_loss=0.0072 val_loss=0.0086 val_acc=0.9979
-Epoch 30/30: train_loss=0.0073 val_loss=0.0086 val_acc=0.9980
-Best val accuracy: 0.9981 (epoch 27) -> example_run/model.pth
-[ble: elapsed 111.179s (CPU 104.7%)] uv run decoder/train.py --dataset example_run/dataset.npz --config example_run/trial_000/config.json --output-dir example_run/ --epochs 30 --verbose
-
-
+# 2. Retrain the winning config for real (30 epochs)
+uv run decoder/train.py --dataset example_run/dataset.npz --config example_run/trial_000/config.json --output-dir example_run/ --epochs 30 --verbose
+#   Best val accuracy: 0.9981 (epoch 27) -> example_run/model.pth
 ```
+
+At this low noise level (`--noise-default 0.005`, the pipeline's default) the MLP and MWPM are both near-perfect, so the tuning search finds a good config in just 3 epochs — this example is meant to show the four pieces fitting together end to end, not to represent a hard decoding regime (see step 1's `--noise-default` for how to make the problem harder).
 
 ### 3 — Run the SA attack
 

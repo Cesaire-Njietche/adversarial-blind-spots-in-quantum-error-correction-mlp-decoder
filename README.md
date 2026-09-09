@@ -24,12 +24,12 @@ Experiments run on the **rotated surface code** at distances d=3 and d=5, under 
 ```
 .
 ├── data/
-│   ├── generate_datasets.py        # Stim-based dataset generation (Z and X basis)
+│   ├── generate_datasets.py        # Stim-based dataset generation, saves a .npz + a matching .json of circuit params
 │   └── noise_models.py             # Simple depolarizing + circuit-level FT configs
 │
 ├── decoder/
-│   ├── mlp_decoder.py              # MLP architecture, training loop, evaluation
-│   └── mwpm_reference.py           # PyMatching wrapper for MWPM baseline
+│   ├── mlp_decoder.py              # MLP architecture, training loop, evaluation (WIP)
+│   └── mwpm_reference.py           # PyMatching MWPM baseline, rebuilds the circuit from a dataset's .json
 │
 ├── attacks/
 │   ├── adversary_model.py          # Formal adversary model and budget constraint
@@ -60,24 +60,49 @@ Experiments run on the **rotated surface code** at distances d=3 and d=5, under 
 
 ### Requirements
 
-```bash
-pip install stim pymatching torch numpy scikit-learn matplotlib
-```
+Install requirements from `requirements.txt` for example using pip : 
 
+```bash
+pip install -r requirements.txt
+```
 Python 3.10+ recommended.
+
 
 ### 1 — Generate training data
 
 ```bash
-python data/generate_datasets.py --distance 3 --rounds 6 --shots 1000000 --noise depolarizing
-python data/generate_datasets.py --distance 3 --rounds 6 --shots 1000000 --noise circuit_level
+python data/generate_datasets.py --distance 3 --rounds 6 --samples 1000000 --noise depolarizing --output data/train_depolarizing.npz
+python data/generate_datasets.py --distance 3 --rounds 6 --samples 1000000 --noise circuit-level --output data/train_circuit_level.npz --verbose
 ```
+
+Arguments: `--distance` (default 3), `--rounds` (default 9), `--samples` (default 100,000), `--noise` (`depolarizing` or `circuit-level`) (default `depolarizing`), `--output` (required), `--verbose`.
+
+Each run writes two files :
+- the `.npz` itself, with `"labels"` (shape `(samples, 1)`, logical observable flips) and `"features"` (shape `(samples, (d²-1)*rounds)`, detector/syndrome bits)
+- a `.json` (same path, but with `.json` extension) recording `distance`, `rounds`, `noise_type`, `noise_default` — the parameters needed to rebuild the exact same circuit later (used by `mwpm_reference.py` below)
+
+With `--verbose`, a short analytics summary is printed before saving.
 
 ### 2 — Train the MLP decoder
 
 ```bash
 python decoder/mlp_decoder.py --distance 3 --noise depolarizing
 ```
+
+*(work in progress)*
+
+### 2b — Run the MWPM reference decoder
+
+```bash
+python decoder/mwpm_reference.py --metadata data/train_depolarizing.json --dataset data/train_depolarizing.npz --prediction-path data/mwpm_predictions.npz --verbose
+```
+
+Rebuilds the circuit from the dataset's `.json` file, decodes the syndromes in `--dataset` with PyMatching, and reports the logical error rate. `--prediction-path` is required and stores predictions, ground-truth labels, and the logical error rate as a `.npz`.
+
+If `--dataset` is omitted, `--samples` (default 100,000) fresh shots are sampled directly from the rebuilt circuit instead — useful for a quick standalone MWPM sanity check, but **not** for a fair comparison against another decoder, since that draws an independent random syndromes. 
+> [!WARNING]
+> **Attention**
+> Always pass `--dataset` pointing at a shared `.npz` when comparing MWPM against the MLP.
 
 ### 3 — Run the SA attack
 
@@ -108,9 +133,11 @@ python experiments/run_boundary_analysis.py --distance 3 --shots 2000000
 
 ## Noise Models
 
-**Depolarizing (simple):** uniform independent Pauli noise on data qubits only, perfect measurements. Good for baselines and threshold analysis.
+Defined in `data/noise_models.py` via `generate_noise_constants(noise_type, default=0.05, ...)`, which returns a kwargs dict fed straight into `stim.Circuit.generated(...)`. Any parameter left unspecified falls back to `default`.
 
-**Circuit-level FT:** per-gate depolarizing noise, noisy measurements, noisy ancilla resets, and idle data qubit errors — all configurable per-qubit. Matches real hardware noise structure. Generated via `stim.Circuit.generated(..., after_clifford_depolarization=..., before_measure_flip_probability=...)`.
+**Depolarizing (simple, `--noise depolarizing`):** only `before_round_data_depolarization` is set — uniform Pauli noise on data qubits between rounds, otherwise noiseless. Good for baselines and threshold analysis.
+
+**Circuit-level FT (`--noise circuit-level`):** `after_clifford_depolarization`, `after_reset_flip_probability`, `before_measure_flip_probability`, and `before_round_data_depolarization` are all set — per-gate depolarizing noise, noisy measurements, and noisy ancilla resets. Matches real hardware noise structure more closely.
 
 ---
 

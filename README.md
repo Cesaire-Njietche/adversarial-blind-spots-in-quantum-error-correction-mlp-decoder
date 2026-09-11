@@ -113,7 +113,7 @@ Trains the MLP from `decoder/model.py` on the GPU when one is available (falls b
 python decoder/tune.py --dataset data/train_depolarizing.npz --output-dir runs/tuning --trials 20 --epochs 30 --seed 42 --verbose
 ```
 
-Random search over `hidden_sizes`, `dropout` and `lr` (see `tune.SEARCH_SPACE`). Every trial calls `train.train()` directly — `tune.py` never re-implements the training loop, so there is exactly one training implementation to trust. Writes:
+Random search over the `tune.SEARCH_SPACE`. Every trial calls `train.train()` directly — `tune.py` and for maximum `trails` configs in `tune.SEARCH_SPACE` runs `epochs` training:
 - `<output-dir>/trial_XXX/` — `config.json`/`model.pth`/`metrics.json` for each trial, written by `train()` itself
 - `<output-dir>/leaderboard.json` — every trial's config + `best_val_accuracy`, ranked best first
 
@@ -175,12 +175,7 @@ python experiments/run_boundary_analysis.py --distance 3 --shots 2000000
 
 > **Always pass `--dataset` (not `--samples`) to `mwpm_reference.py` when comparing MWPM against the MLP.** `--samples` draws an independent random syndrome set, which is fine for a standalone MWPM sanity check but not for a fair, same-syndrome comparison against another decoder. This is exactly why `config.json` keeps a `dataset_path` reference — it's what tells you which `.npz` to point `--dataset` at.
 
-> **Seeds used across the pipeline** — several distinct seeds show up in steps 1–2c, each controlling a different thing:
-> - **Dataset generation (step 1)** has no `--seed` at all — `generate_datasets.py` samples the circuit unseeded, so re-running it produces a *different* dataset every time, even with identical arguments.
-> - **`train.py --seed`** seeds `torch`/`numpy` for weight initialization *and* the stratified train/val split (via `sklearn`'s `random_state`). If omitted it reuses the seed recorded in `--config` when there is one (so retraining a saved `config.json` reproduces that exact run), otherwise it defaults to 42.
-> - **`tune.py --seed`** (default 42) seeds one master RNG that both picks which configs the search tries *and* derives each trial's own training seed — reproduces the whole search, not just one trial.
->
-> None of these seed the dataset itself, so "reproducible training" only holds as long as you keep the original `.npz` around rather than regenerating it.
+> **Seeds across the pipeline are independent.** `generate_datasets.py` has no `--seed`, so re-running it gives a different dataset each time. `train.py --seed` only seeds weight init and the train/val split (falls back to the seed in `--config`, else 42). `tune.py --seed` (default 42) seeds the whole search. None of these seed the dataset itself — reproducible training requires both the original `.npz` and the same seed.
 
 ---
 

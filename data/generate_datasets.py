@@ -4,12 +4,16 @@ Date : 2026-09-09
 
 This file allows to create npz datasets from the stim circuit generation, with the noise model parameters imported from the noise_models.py file. 
 
-Arguments : 
+Arguments :
     --distance
     --rounds
     --samples
     --noise
     --noise-default
+    --after-clifford-depolarization    (circuit-level only, overrides --noise-default for this param)
+    --after-reset-flip-probability     (circuit-level only, overrides --noise-default for this param)
+    --before-measure-flip-probability  (circuit-level only, overrides --noise-default for this param)
+    --before-round-data-depolarization (overrides --noise-default for this param, both noise models)
     --output (the file path)
 
 
@@ -32,10 +36,14 @@ import os
 
 
 def create_circuit(
-        distance, 
-        rounds, 
-        noise_type, 
-        noise_default, 
+        distance,
+        rounds,
+        noise_type,
+        noise_default,
+        after_clifford_depolarization=None,
+        after_reset_flip_probability=None,
+        before_measure_flip_probability=None,
+        before_round_data_depolarization=None,
         verbose=False
         ):
     """
@@ -43,9 +51,14 @@ def create_circuit(
 
     Uses stim's built-in "surface_code:rotated_memory_z" generator, which
     protects a logical qubit stored in the Z basis (so it is sensitive to
-    logical X errors caused by bit flips). Noise parameters are looked up
+    logical X errors caused by bit flips). Both X and Z stabilizers are measured but only X logical errors are detected.
+
+    Noise parameters are looked up
     from noise_models.py based on the --noise CLI argument, keeping the
-    actual probabilities out of this file.
+    actual probabilities out of this file. Any of the four circuit-level
+    parameters left as None falls back to noise_default (see
+    noise_models.generate_noise_constants), so a dataset can mix per-param
+    overrides with the shared default.
 
 
     """
@@ -57,6 +70,10 @@ def create_circuit(
         #Note that following line can be changed to be more specific (see noise_models.py for more details)
         **nm(
             noise_type=noise_type,
+            after_clifford_depolarization=after_clifford_depolarization,
+            after_reset_flip_probability=after_reset_flip_probability,
+            before_measure_flip_probability=before_measure_flip_probability,
+            before_round_data_depolarization=before_round_data_depolarization,
             default=noise_default
         )
 
@@ -117,12 +134,27 @@ def save_dataset(dataset):
         features=dataset["features"],
     )
 
-def save_metadata(dataset_path, distance, rounds, noise_type, noise_default=0.005):
+def save_metadata(
+        dataset_path,
+        distance,
+        rounds,
+        noise_type,
+        noise_default=0.005,
+        after_clifford_depolarization=None,
+        after_reset_flip_probability=None,
+        before_measure_flip_probability=None,
+        before_round_data_depolarization=None,
+        ):
     """
     Write a small JSON sidecar next to the dataset with the parameters used
     to build the circuit that generated it. Anything that needs to rebuild
     an identical circuit later (e.g. an MWPM baseline decoder) reads this
     file instead of guessing/hardcoding the settings.
+
+    The four circuit-level params are only written when explicitly set
+    (i.e. not None), so datasets generated with a single shared
+    --noise-default keep the old, simpler sidecar layout -- create_circuit
+    falls back to noise_default for any key missing here.
     """
     metadata = {
         "distance": distance,
@@ -130,6 +162,13 @@ def save_metadata(dataset_path, distance, rounds, noise_type, noise_default=0.00
         "noise_type": noise_type,
         "noise_default": noise_default,
     }
+    per_param = {
+        "after_clifford_depolarization": after_clifford_depolarization,
+        "after_reset_flip_probability": after_reset_flip_probability,
+        "before_measure_flip_probability": before_measure_flip_probability,
+        "before_round_data_depolarization": before_round_data_depolarization,
+    }
+    metadata.update({k: v for k, v in per_param.items() if v is not None})
 
     #remove extension
     metadata_path = os.path.splitext(dataset_path)[0] + ".json"
@@ -209,6 +248,34 @@ def parse_args():
              "(see noise_models.py). Default: 0.005 (0.5%%)."
     )
     parser.add_argument(
+        "--after-clifford-depolarization",
+        type=float,
+        default=None,
+        help="Circuit-level only: depolarization probability after each Clifford gate. "
+             "Falls back to --noise-default if not set."
+    )
+    parser.add_argument(
+        "--after-reset-flip-probability",
+        type=float,
+        default=None,
+        help="Circuit-level only: flip probability after each qubit reset. "
+             "Falls back to --noise-default if not set."
+    )
+    parser.add_argument(
+        "--before-measure-flip-probability",
+        type=float,
+        default=None,
+        help="Circuit-level only: flip probability before each qubit measurement. "
+             "Falls back to --noise-default if not set."
+    )
+    parser.add_argument(
+        "--before-round-data-depolarization",
+        type=float,
+        default=None,
+        help="Depolarization probability before each round of data-qubit operations "
+             "(used by both noise models). Falls back to --noise-default if not set."
+    )
+    parser.add_argument(
         "--output",
         type=str,
         help="Output file path (e.g., ./export/dataset.npz) (required)",
@@ -235,7 +302,14 @@ if __name__ == "__main__":
 
 
 
-    circuit = create_circuit(args.distance, args.rounds, args.noise, noise_default=args.noise_default, verbose=args.verbose)
+    circuit = create_circuit(
+        args.distance, args.rounds, args.noise, noise_default=args.noise_default,
+        after_clifford_depolarization=args.after_clifford_depolarization,
+        after_reset_flip_probability=args.after_reset_flip_probability,
+        before_measure_flip_probability=args.before_measure_flip_probability,
+        before_round_data_depolarization=args.before_round_data_depolarization,
+        verbose=args.verbose,
+    )
     sampler = create_sampler(circuit)
     labels, features = sample(sampler, args.samples, verbose=args.verbose)
     dataset = create_dataset(labels, features)
@@ -244,4 +318,10 @@ if __name__ == "__main__":
         dataset_analytics(dataset)
 
     save_dataset(dataset)
-    save_metadata(args.output, args.distance, args.rounds, args.noise, noise_default=args.noise_default)
+    save_metadata(
+        args.output, args.distance, args.rounds, args.noise, noise_default=args.noise_default,
+        after_clifford_depolarization=args.after_clifford_depolarization,
+        after_reset_flip_probability=args.after_reset_flip_probability,
+        before_measure_flip_probability=args.before_measure_flip_probability,
+        before_round_data_depolarization=args.before_round_data_depolarization,
+    )

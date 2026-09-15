@@ -28,9 +28,14 @@ from train import train
 # Hidden-layer shapes to try, and the discrete choices each layer's dropout
 # and the optimizer's learning rate are drawn from.
 SEARCH_SPACE = {
-    "hidden_sizes": [(128, 64), (256, 128, 64), (256, 128, 64, 32)],
-    "dropout_choices": [0.0, 0.1, 0.2],   
-    "lr": [0.001, 0.003, 0.01],
+    "hidden_sizes": [
+        (128, 64),
+        (256, 128, 64),
+        (256, 128, 64, 32),
+        (512, 256, 128, 64),
+    ],
+    "dropout_choices": [0.0, 0.1, 0.2, 0.3],
+    "lr": [0.0003, 0.001, 0.003, 0.01],
 }
 
 

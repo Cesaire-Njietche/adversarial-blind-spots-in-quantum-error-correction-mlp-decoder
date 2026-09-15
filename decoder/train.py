@@ -106,6 +106,17 @@ def train(config, dataset_path, output_dir, epochs=50, seed=42, verbose=False):
     os.makedirs(output_dir, exist_ok=True)
     checkpoint_path = os.path.join(output_dir, "model.pth")
 
+    # Save config + provenance (which dataset/seed produced this checkpoint) up
+    # front, before training starts
+    config_record = {
+        **config,
+        "dataset_path": os.path.abspath(dataset_path),
+        "seed": seed,
+        "epochs": epochs,
+    }
+    with open(os.path.join(output_dir, "config.json"), "w") as f:
+        json.dump(config_record, f, indent=2)
+
     train_losses, val_losses = [], []
     best_accuracy = 0.0
     best_epoch = 0
@@ -154,15 +165,6 @@ def train(config, dataset_path, output_dir, epochs=50, seed=42, verbose=False):
         "val_losses": val_losses,
     }
 
-    # Save config + provenance (which dataset/seed produced this checkpoint)
-    config_record = {
-        **config,
-        "dataset_path": os.path.abspath(dataset_path),
-        "seed": seed,
-        "epochs": epochs,
-    }
-    with open(os.path.join(output_dir, "config.json"), "w") as f:
-        json.dump(config_record, f, indent=2)
     with open(os.path.join(output_dir, "metrics.json"), "w") as f:
         json.dump(metrics, f, indent=2)
 

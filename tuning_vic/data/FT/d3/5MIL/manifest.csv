@@ -1,0 +1,7 @@
+label,after_clifford_depolarization,after_reset_flip_probability,before_measure_flip_probability,before_round_data_depolarization
+rand_001,0.008,0.001,0.006,0.009
+rand_002,0.004,0.006,0.004,0.002
+rand_003,0.002,0.006,0.005,0.008
+rand_004,0.006,0.001,0.006,0.004
+rand_005,0.010,0.009,0.005,0.008
+all_010,0.010,0.010,0.010,0.010

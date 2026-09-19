@@ -1,0 +1,2 @@
+Le graph comp.png représente le LER pour différente configuration de circuits.Puisque plusieurs probabilités sont présente dans ces circuits,
+j'ai créer dix circuits avec des probabilités individuelle dans la range[0.005, 0.01]. L'axe x indique la moyenne des probabilités individuelles.

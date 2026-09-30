@@ -1,4 +1,5 @@
 *.zip
+tuning_vic/
 .python-version
 pyproject.toml
 uv.lock
@@ -12,4 +13,3 @@ data/__pycache__/
 data/*.json
 *.json
 decoder/__pycache__/
-./tuning_vic/final_training

@@ -39,11 +39,11 @@ import pymatching
 import torch
 
 #ajout des dossier decoder et data au path pour pouvoir importer les modules model et generate_datasets
-sys.path.append(os.path.join(os.path.dirname(__file__), "..", "decoder"))
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "data"))
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", "decoder"))
 
-from model import build_model
 from generate_datasets import create_circuit, create_sampler, sample as draw_samples
+from model import build_model_from_checkpoint_as_eval
 
 # the noise models and distances/params we trained a model for (matches the
 # folder names under final_models/)
@@ -63,35 +63,6 @@ PARAM_FOLDER_TO_VALUE = {
     "01": 0.01,
 }
 
-
-def build_model_from_checkpoint(config_path, checkpoint_path, distance, rounds=9):
-    """
-    Rebuild a trained MLP decoder from its config.json + model.pth.
-
-    config.json only stores architecture hyperparameters (hidden_sizes,
-    dropout, ...) -- it does NOT store distance/rounds, so input_size has
-    to be recomputed from distance/rounds instead of read from the config.
-
-    @args:
-        config_path     : path to config.json (hidden_sizes/dropout)
-        checkpoint_path : path to model.pth (state_dict)
-        distance        : surface code distance the model was trained on
-        rounds          : number of syndrome-measurement rounds (default: 9)
-    @returns:
-        the model, ready to make predictions (in eval mode)
-    """
-    with open(config_path) as f:
-        config = json.load(f)
-
-    # one detector per ancilla per round, and there are (distance^2 - 1) ancillas
-    input_size = rounds * (distance ** 2 - 1)
-    model = build_model(config, input_size)
-
-    state_dict = torch.load(checkpoint_path, map_location=torch.device("cpu"))
-    model.load_state_dict(state_dict)
-    model.eval()
-
-    return model
 
 
 def sort_into_categories(features, true_labels, mwpm_predictions, mlp_predictions):
@@ -147,7 +118,7 @@ def build_disagreement_map_for_model(noise_folder, distance, param_folder, final
     if not (os.path.exists(config_path) and os.path.exists(checkpoint_path)):
         return None
 
-    model = build_model_from_checkpoint(config_path, checkpoint_path, distance, rounds)
+    model = build_model_from_checkpoint_as_eval(config_path, checkpoint_path, distance, rounds)
 
     # 2. Build circuit and MWPM decoder from circuit
     noise_type = NOISE_FOLDER_TO_TYPE[noise_folder]

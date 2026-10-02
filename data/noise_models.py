@@ -37,7 +37,7 @@ def generate_noise_constants(
     
     """
     print(f"Generating noise constants for noise model: {noise_type} with default value: {default}")
-    print("########################################################")
+    # print("########################################################")
 
     def d(v):
         return default if v is None else v

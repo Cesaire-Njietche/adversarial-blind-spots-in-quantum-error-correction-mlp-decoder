@@ -15,7 +15,7 @@ Neural decoders are fast and adaptive, but opaque. This project asks: are there 
 1. **Simulated annealing attack** - searches over error pattern space for worst-case syndromes within a physical error budget
 2. **Decision boundary analysis** - maps syndromes where the MLP fails but the optimal decoder (MWPM) succeeds
 
-Experiments run on the **rotated surface code** at distances d=3 d=5 and d=7, under both depolarizing and circuit-level fault-tolerant noise models, using [Stim](https://github.com/quantumlib/Stim) for simulation and [PyMatching](https://github.com/oscarhiggott/PyMatching) as the MWPM reference decoder.
+Experiments run on the **rotated surface code** at distances d=3, d=5 and d=7 under both depolarizing and circuit-level fault-tolerant noise models, using [Stim](https://github.com/quantumlib/Stim) for simulation and [PyMatching](https://github.com/oscarhiggott/PyMatching) as the MWPM reference decoder.
 
 ---
 

@@ -12,29 +12,26 @@ Arguments (CLI):
     --final-models-dir   root dir containing <NoiseModel>/d<D>/<param>/{config.json,model.pth} (default: ../final_models)
     --samples            number of syndromes to draw per config (default: 100_000)
     --rounds             number of syndrome-measurement rounds used to train the models (default: 9)
-    --output             where to write the resulting JSON
+    --output             where to write the resulting HDF5 file
 
-OUTPUT : the output JSON is a nested dictionary of the form:
-{
-    <NoiseModel> : {
-        <distance> : {
-            <param> : {
-                "both_correct" : <number of syndromes where both decoders are correct>,
-                "both_wrong"   : <number of syndromes where both decoders are wrong>,
-                "blind"  : <LIST of syndromes where MLP is correct but MWPM is wrong>,
-                "mlp" : <number of syndromes where MLP is wrong but MWPM is correct>
-            }
-        }
-    }
-}
-
+OUTPUT : the output is an HDF5 file (https://www.h5py.org/), 
+The file is organized as nested groups. 
+Every category is stored as a full array of syndromes :
+    <NoiseModel>/d<distance>/<param>/
+        both_correct     : array of syndromes where both decoders are correct
+        both_wrong       : array of syndromes where both decoders are wrong
+        mlp_blind_spot   : array of syndromes where MWPM is correct but MLP is wrong
+        mwpm_blind_spot  : array of syndromes where MLP is correct but MWPM is wrong
 """
 
 import argparse
-import json
+import gc
+import itertools
 import os
 import sys
 
+import h5py
+import numpy as np
 import pymatching
 import torch
 
@@ -67,38 +64,31 @@ PARAM_FOLDER_TO_VALUE = {
 
 def sort_into_categories(features, true_labels, mwpm_predictions, mlp_predictions):
     """
-    Compare both decoders' predictions to the true labels, syndrome by
-    syndrome, and sort every syndrome into one of 4 categories.
+    Compare both decoders' predictions to the true labels and sort every
+    syndrome into one of 4 categories. Uses numpy boolean masks instead of
+    a per-syndrome python loop, both for speed and because it keeps the
+    syndromes as compact numpy arrays (ready to write to HDF5) instead of
+    turning each one into a python list.
 
     @returns:
-        dict with keys "both_correct"/"both_wrong"/"blind"/"mlp", each a
-        list of syndromes (each syndrome is a list of 0s and 1s)
+        dict with keys "both_correct"/"both_wrong"/"mlp_blind_spot"/"mwpm_blind_spot",
+        each a numpy array of syndromes (one syndrome per row).
     """
-    categories = {
-        "both_correct": [],
-        "both_wrong": [],
-        "blind": [],
-        "mlp": [],
+    mwpm_is_correct = mwpm_predictions == true_labels
+    mlp_is_correct = mlp_predictions == true_labels
+
+    both_correct_mask = mwpm_is_correct & mlp_is_correct
+    mlp_blind_spot_mask = mwpm_is_correct & ~mlp_is_correct
+    mwpm_blind_spot_mask = ~mwpm_is_correct & mlp_is_correct
+    both_wrong_mask = ~mwpm_is_correct & ~mlp_is_correct
+
+    # features are 0/1 values but come in as float32; store as uint8 instead
+    return {
+        "both_correct": features[both_correct_mask].astype(np.uint8),
+        "both_wrong": features[both_wrong_mask].astype(np.uint8),
+        "mlp_blind_spot": features[mlp_blind_spot_mask].astype(np.uint8),
+        "mwpm_blind_spot": features[mwpm_blind_spot_mask].astype(np.uint8),
     }
-
-    n_samples = len(true_labels)
-    for i in range(n_samples):
-        syndrome = features[i].astype(int).tolist()
-        true_label = int(true_labels[i])
-
-        mwpm_is_correct = mwpm_predictions[i] == true_label
-        mlp_is_correct = mlp_predictions[i] == true_label
-
-        if mwpm_is_correct and mlp_is_correct:
-            categories["both_correct"].append(syndrome)
-        elif mwpm_is_correct and not mlp_is_correct:
-            categories["mlp"].append(syndrome)
-        elif not mwpm_is_correct and mlp_is_correct:
-            categories["blind"].append(syndrome)
-        else:
-            categories["both_wrong"].append(syndrome)
-
-    return categories
 
 
 def build_disagreement_map_for_model(noise_folder, distance, param_folder, final_models_dir, rounds=9, samples=100_000):
@@ -133,27 +123,18 @@ def build_disagreement_map_for_model(noise_folder, distance, param_folder, final
     true_labels = true_labels.reshape(-1)  # from shape (samples, 1) to shape (samples,)
 
     # 4. Decode with both decoders
-    mwpm_predictions = []
-    for syndrome in features:
-        prediction = matcher.decode(syndrome)
-        mwpm_predictions.append(int(prediction[0]))
+    mwpm_predictions = np.array([int(matcher.decode(syndrome)[0]) for syndrome in features])
 
     features_tensor = torch.from_numpy(features)
     with torch.no_grad():
         logits = model(features_tensor)
-    mlp_predictions = []
-    for logit in logits:
-        if logit.item() > 0:  # same as sigmoid(logit) > 0.5
-            mlp_predictions.append(1)
-        else:
-            mlp_predictions.append(0)
+    mlp_predictions = (logits.reshape(-1) > 0).numpy().astype(int)  # same as sigmoid(logit) > 0.5
 
     # 5. Sort into categories
     return sort_into_categories(features, true_labels, mwpm_predictions, mlp_predictions)
 
 
-#computed from this file's own location, so the default works no matter
-#which directory you run the script from
+#our final models are in "final_models/"
 DEFAULT_FINAL_MODELS_DIR = os.path.join(os.path.dirname(__file__), "..", "final_models")
 
 
@@ -169,30 +150,29 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
 
-    disagreement_map = {}
+    #all 12 (noise_model, distance, param) combinations, flattened into one
+    #simple list so we only need a single for loop below
+    all_configs = itertools.product(NOISE_MODELS, DISTANCES, PARAMS)
 
-    #do it for every (noise_model, distance, param) combination (12 in total)
-    for noise_folder in NOISE_MODELS:
-        disagreement_map[noise_folder] = {}
+    with h5py.File(args.output, "w") as f:
+        for noise_folder, distance, param_folder in all_configs:
+            print(f"Building disagreement map for {noise_folder}/d{distance}/{param_folder}")
+            result = build_disagreement_map_for_model(
+                noise_folder, distance, param_folder, args.final_models_dir, rounds=args.rounds, samples=args.samples
+            )
 
-        for distance in DISTANCES:
-            disagreement_map[noise_folder][distance] = {}
+            if result is None:
+                print(f"  no model found, skipping")
+                continue
 
-            for param_folder in PARAMS:
-                print(f"Building disagreement map for {noise_folder}/d{distance}/{param_folder}")
-                result = build_disagreement_map_for_model(
-                    noise_folder, distance, param_folder, args.final_models_dir, rounds=args.rounds, samples=args.samples
-                )
+            #write this config's result to disk straight away, as its own H5 group,
+            #one dataset per category (all 4 kept as full syndrome arrays)
+            group = f.create_group(f"{noise_folder}/d{distance}/{param_folder}")
+            group.create_dataset("both_correct", data=result["both_correct"], compression="gzip")
+            group.create_dataset("both_wrong", data=result["both_wrong"], compression="gzip")
+            group.create_dataset("mlp_blind_spot", data=result["mlp_blind_spot"], compression="gzip")
+            group.create_dataset("mwpm_blind_spot", data=result["mwpm_blind_spot"], compression="gzip")
 
-                if result is None:
-                    print(f"  no model found, skipping")
-                    continue
-                #modify result so that it contains counts instead of lists of syndromes except for the "blind" category
-                result["both_correct"] = len(result["both_correct"])
-                result["both_wrong"] = len(result["both_wrong"])
-                result["mlp"] = len(result["mlp"])
-                disagreement_map[noise_folder][distance][param_folder] = result
-
-
-    with open(args.output, "w") as f:
-        json.dump(disagreement_map, f)
+            #drop the (potentially huge) syndrome arrays before moving to the next config
+            del result, group
+            gc.collect()

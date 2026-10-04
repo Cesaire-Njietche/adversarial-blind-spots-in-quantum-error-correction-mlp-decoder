@@ -96,6 +96,3 @@ if __name__ == "__main__":
 
         dictionary = read_h5_table(args.input, group_path)
         compute_boxplot_Weight(dictionary["mlp_blind_spot"], args.output_folder, group_path)
-
-
-

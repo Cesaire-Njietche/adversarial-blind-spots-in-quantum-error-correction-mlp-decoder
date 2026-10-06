@@ -211,31 +211,32 @@ def compute_boundary_proximity_boxplot(syndromes_mlp_blindpsots:List, syndromes_
         for j, xy in coord.items()
     }
 
-    def min_boundary_dist_per_sample(syndromes):
-        dists = []
+    def boundary_fraction_per_sample(syndromes):
+        # fraction of THIS sample's fired detectors that sit right on the boundary (dist == 0).
+        # normalized by how many detectors fired
+        fracs = []
         for sample in syndromes:
             fired = [boundary_dist[j] for j in range(len(sample)) if sample[j] == 1]
-            # get the min of all minimum distances from all samples
-            dists.append(min(fired) if fired else np.nan)
-        return np.array(dists)
+            fracs.append(sum(d == 0 for d in fired) / len(fired) if fired else np.nan)
+        return np.array(fracs)
 
-    blindspot_dist = min_boundary_dist_per_sample(syndromes_mlp_blindpsots)
-    both_correct_dist = min_boundary_dist_per_sample(syndromes_both_correct)
+    blindspot_frac = boundary_fraction_per_sample(syndromes_mlp_blindpsots)
+    both_correct_frac = boundary_fraction_per_sample(syndromes_both_correct)
 
-    # samples with zero fired detectors have no "closest fired detector" -> drop them
-    blindspot_dist = blindspot_dist[~np.isnan(blindspot_dist)]
-    both_correct_dist = both_correct_dist[~np.isnan(both_correct_dist)]
+    # samples with zero fired detectors have no defined fraction -> drop them
+    blindspot_frac = blindspot_frac[~np.isnan(blindspot_frac)]
+    both_correct_frac = both_correct_frac[~np.isnan(both_correct_frac)]
 
     fig, ax = plt.subplots()
     ax.boxplot(
-        [blindspot_dist, both_correct_dist],
+        [blindspot_frac, both_correct_frac],
         tick_labels=["MLP blind spots", "Both Correct"]
     )
     ax.set_title(
-        r"Boundary proximity: distance to nearest edge of $\mathcal{P}_{blind}$ spots and $\mathcal{P}_{both}$"
+        r"Boundary proximity: fraction of fired detectors on the edge of $\mathcal{P}_{blind}$ spots and $\mathcal{P}_{both}$"
         f"\n{group_path}"
     )
-    ax.set_ylabel("Distance of closest fired detector to grid boundary")
+    ax.set_ylabel("Fraction of fired detectors on grid boundary")
 
     os.makedirs(f"{output_files_path}/Boundary", exist_ok=True)
     fig.savefig(f"{output_files_path}/Boundary/{group_path.replace('/', '_')}_BoundaryBoxplot.png")

@@ -26,7 +26,7 @@ def extract_error_instructions_from_dem(dem):
 
     return e_instructions
 
-def E_to_synd_and_label(dem, E):
+def E_to_synd_and_label(dem, error_intrs, E):
     """
     Given a binary error pattern E over DEM error mechanisms,
     compute the resulting syndrome and logical observable by XOR-ing
@@ -49,9 +49,9 @@ def E_to_synd_and_label(dem, E):
     synd = np.zeros(num_detectors, dtype=np.int8)
     logical = np.zeros(num_observables, dtype=np.int8)
 
-    e_instructions = extract_error_instructions_from_dem(dem)
+    #e_instructions = extract_error_instructions_from_dem(dem)
 
-    for i, e_instr in enumerate(e_instructions):
+    for i, e_instr in enumerate(error_intrs):
         if E[i] == 1:
             # XOR the detectors this error flips. A target is a detector
             for target in e_instr.targets_copy():
@@ -99,88 +99,92 @@ def attack(
     best_label = None
     best_loss = -np.inf
     n_detectors = dem.num_detectors # N_ancillas X N_rounds
+    e_instructions = extract_error_instructions_from_dem(dem)
+    L = len(e_instructions)
 
-    for restart in range(n_restarts):
+    with torch.no_grad():
+        model.eval()
+        for restart in range(n_restarts):
 
-        # -- initialise: random pattern of exact weight W 
-        L = len(extract_error_instructions_from_dem(dem))
-        E = np.zeros(L, dtype=np.int8)
-        init_idx = rng.choice(L, size=W, replace=False)
-        E[init_idx] = 1
-
-        S, label = E_to_synd_and_label(dem, E)
-
-        # transform the syndrome vector S and the ground truth label to fit in the model
-        label = torch.tensor([label])
-        S = torch.from_numpy(S)
-        S = S.view(n_detectors)
-        label = label.view(1)
-
-        # compute the BCE loss
-        curr_loss  = criterion(model(S), label)
-
-        local_best_loss = curr_loss
-        local_best_S    = S.clone()
-        local_best_label = label
-
-        T = T0
-
-         # -- annealing loop 
-        while T > T_min:
-            for _ in range(steps_per_T):
-
-                # swap move: keeps |E| = W
-                on_idx  = np.flatnonzero(E == 1)
-                off_idx = np.flatnonzero(E == 0)
-                i_remove = rng.choice(on_idx)
-                i_add    = rng.choice(off_idx)
-
-                E_new = E.copy()
-                E_new[i_remove] = 0
-                E_new[i_add]    = 1
-
-                S_new, label_new = E_to_synd_and_label(
-                    dem, E_new)
-
-                # transform the syndrome vector S and the ground truth label to fit in the model
-                label_new = torch.tensor([label_new])
-                S_new = torch.from_numpy(S_new)
-                S_new = S_new.view(n_detectors)
-                label_new = label_new.view(1)
-
-                new_loss = criterion(model(S_new), label_new)
-
-                # metropolis–Hastings acceptance
-                delta = new_loss - curr_loss
-                delta = delta.item()
-                if delta > 0 or rng.random() < np.exp(delta / T):
-                    E, curr_loss = E_new, new_loss
-                    S, label     = S_new, label_new
-
-                    if curr_loss > local_best_loss:
-                        local_best_loss  = curr_loss
-                        local_best_S     = S.clone()
-                        local_best_label = label
-
-            T *= cooling   # geometric cooling
-
-        # update best_S and best_label across restarts
-        if local_best_loss > best_loss:
-            best_S  = local_best_S.clone()
-            best_label = local_best_label
-            best_loss = local_best_loss
+            # -- initialise: random pattern of exact weight W 
             
-        # update adversarial catalog accross restarts
-        # compute attack success rate across restarts
-        pred = (model(local_best_S) > 0.0).float()
-        if pred != local_best_label:
-            adversarial_catalog.append(local_best_S)
-            attack_rate += 1
+            E = np.zeros(L, dtype=np.int8)
+            init_idx = rng.choice(L, size=W, replace=False)
+            E[init_idx] = 1
 
-        if (restart + 1) % 1 == 0:
-            print(f"  restart {restart+1}/{n_restarts} | "
-                  f"best BCE loss so far: {best_loss:.4f}")
+            S, label = E_to_synd_and_label(dem, e_instructions, E)
 
-    attack_rate /= n_restarts
+            # transform the syndrome vector S and the ground truth label to fit in the model
+            label = torch.tensor([label])
+            S = torch.from_numpy(S)
+            S = S.view(n_detectors)
+            label = label.view(1)
+
+            # compute the BCE loss
+            curr_loss  = criterion(model(S), label)
+
+            local_best_loss = curr_loss
+            local_best_S    = S.clone()
+            local_best_label = label
+
+            T = T0
+
+            # -- annealing loop 
+            while T > T_min:
+                for _ in range(steps_per_T):
+
+                    # swap move: keeps |E| = W
+                    on_idx  = np.flatnonzero(E == 1)
+                    off_idx = np.flatnonzero(E == 0)
+                    i_remove = rng.choice(on_idx)
+                    i_add    = rng.choice(off_idx)
+
+                    E_new = E.copy()
+                    E_new[i_remove] = 0
+                    E_new[i_add]    = 1
+
+                    S_new, label_new = E_to_synd_and_label(
+                        dem, e_instructions, E_new)
+
+                    # transform the syndrome vector S and the ground truth label to fit in the model
+                    label_new = torch.tensor([label_new])
+                    S_new = torch.from_numpy(S_new)
+                    S_new = S_new.view(n_detectors)
+                    label_new = label_new.view(1)
+
+                    new_loss = criterion(model(S_new), label_new)
+
+                    # metropolis–Hastings acceptance
+                    delta = new_loss - curr_loss
+                    delta = delta.item()
+                    if delta > 0 or rng.random() < np.exp(delta / T):
+                        E, curr_loss = E_new, new_loss
+                        S, label     = S_new, label_new
+
+                        if curr_loss > local_best_loss:
+                            local_best_loss  = curr_loss
+                            local_best_S     = S.clone()
+                            local_best_label = label
+
+                T *= cooling   # geometric cooling
+
+            # update best_S and best_label across restarts
+            if local_best_loss > best_loss:
+                best_S  = local_best_S.clone()
+                best_label = local_best_label
+                best_loss = local_best_loss
+                
+            # update adversarial catalog accross restarts
+            # compute attack success rate across restarts
+            pred = (model(local_best_S) > 0.0).float()
+            if pred != local_best_label:
+                adversarial_catalog.append(local_best_S)
+                attack_rate += 1
+
+            if (restart + 1) % 1 == 0:
+                print(f"  restart {restart+1}/{n_restarts} | "
+                    f"best BCE loss so far: {best_loss:.4f}")
+
+        attack_rate /= n_restarts
 
     return adversarial_catalog, attack_rate, best_S, best_label

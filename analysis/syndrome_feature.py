@@ -334,8 +334,10 @@ if __name__ == "__main__":
     # arrays / lookups that collect what each plot needs, filled in as we go
     auc_matrix_DM_vs_both = np.full((len(ROW_KEYS), len(COL_KEYS)), np.nan)
     auc_matrix_DM_vs_sa = np.full((len(ROW_KEYS), len(COL_KEYS)), np.nan)
+    auc_matrix_both_vs_sa = np.full((len(ROW_KEYS), len(COL_KEYS)), np.nan)
     coef_lookup_DM_vs_both = {}
     coef_lookup_DM_vs_sa = {}
+    coef_lookup_both_vs_sa = {}
 
     for noise_folder, distance, param_folder in tqdm(all_configs):
         group_path = f"{noise_folder}/d{distance}/{param_folder}"
@@ -364,14 +366,19 @@ if __name__ == "__main__":
         circuit = create_circuit(distance=distance, rounds=args.rounds, noise_type=noise_type, noise_default=noise_default)
         dem = circuit.detector_error_model(decompose_errors=True)
         ## Pblind vs Pboth
-        clf_blind, scaler_blind, auc_blind = fit_logistic_regression(DM["mlp_blind_spot"], DM["both_correct"], dem)
-        auc_matrix_DM_vs_both[row, col] = auc_blind
-        coef_lookup_DM_vs_both[(noise_folder, distance, param_folder)] = clf_blind.coef_[0]#first line cuz only 1 usable label class
+        # clf_blind, scaler_blind, auc_blind = fit_logistic_regression(DM["mlp_blind_spot"], DM["both_correct"], dem)
+        # auc_matrix_DM_vs_both[row, col] = auc_blind
+        # coef_lookup_DM_vs_both[(noise_folder, distance, param_folder)] = clf_blind.coef_[0]#first line cuz only 1 usable label class
 
-        ### Pblind vs C
-        clf_sa, scaler_sa, auc_sa = fit_logistic_regression(DM["mlp_blind_spot"], syndromes_adversarial, dem)
-        auc_matrix_DM_vs_sa[row, col] = auc_sa
-        coef_lookup_DM_vs_sa[(noise_folder, distance, param_folder)] = clf_sa.coef_[0]
+        # ### Pblind vs C
+        # clf_sa, scaler_sa, auc_sa = fit_logistic_regression(DM["mlp_blind_spot"], syndromes_adversarial, dem)
+        # auc_matrix_DM_vs_sa[row, col] = auc_sa
+        # coef_lookup_DM_vs_sa[(noise_folder, distance, param_folder)] = clf_sa.coef_[0]
+
+        ### Pboth vs C
+        clf_both_vs_sa, scaler_both_vs_sa, auc_both_vs_sa = fit_logistic_regression(DM["both_correct"], syndromes_adversarial, dem)
+        auc_matrix_both_vs_sa[row, col] = auc_both_vs_sa
+        coef_lookup_both_vs_sa[(noise_folder, distance, param_folder)] = clf_both_vs_sa.coef_[0]
 
     plot_auc_heatmap(
         auc_matrix_DM_vs_both,
@@ -394,5 +401,16 @@ if __name__ == "__main__":
         title=r"Logistic Regression Feature Coefficients ($\mathcal{P}_{blind}$ vs $\mathcal{C}$)"
               "\nGreen = higher in blind spots, Orange = higher in adversarial (SA)",
         output_path=f"{final_output}/Regression/Coefficients_blind_vs_SA.png",
+    )
+    plot_auc_heatmap(
+        auc_matrix_both_vs_sa,
+        title=r"Logistic Regression AUC" "\n" r"($\mathcal{P}_{both}$ vs $\mathcal{C}$)",
+        output_path=f"{final_output}/Regression/AUC_both_vs_SA.png",
+    )
+    plot_feature_coefficients(
+        coef_lookup_both_vs_sa,
+        title=r"Logistic Regression Feature Coefficients ($\mathcal{P}_{both}$ vs $\mathcal{C}$)"
+              "\nGreen = higher in both correct, Orange = higher in adversarial (SA)",
+        output_path=f"{final_output}/Regression/Coefficients_both_vs_SA.png",
     )
 

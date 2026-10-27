@@ -28,33 +28,29 @@ Experiments run on the **rotated surface code** at distances d=3, d=5 and d=7 un
 │   └── noise_models.py             # Simple depolarizing + circuit-level FT configs
 │
 ├── decoder/
-│   ├── model.py                    # MLP architecture (build_model from a config dict)
+│   ├── model.py                    # MLP architecture (build_model / build_model_from_checkpoint_as_eval)
 │   ├── train.py                    # Trains one config on one dataset, saves config/checkpoint/metrics
 │   ├── tune.py                     # Random hyperparameter search, calls train.train() per trial
-│   └── mwpm_reference.py           # PyMatching MWPM baseline, rebuilds the circuit from a dataset's .json
+│   ├── mwpm_reference.py           # PyMatching MWPM baseline, rebuilds the circuit from a dataset's .json
+│   └── config_example.json         # Example --config file for train.py
 │
 ├── attacks/
-│   ├── adversary_model.py          # Formal adversary model and budget constraint
-│   └── simulated_annealing.py      # SA attack over error pattern space
+│   ├── simulated_annealing.py      # SA attack over error pattern space, sweeping every weight budget W, for ONE model
+│   ├── run_all_attacks.py          # Runs simulated_annealing.py against every checkpoint under final_models/
+│   └── results/                    # One <NoiseModel>_d<D>_<param>.jsonl per attacked model (SA catalogs)
 │
 ├── analysis/
-│   ├── disagreement_map.py         # MLP vs MWPM four-way partition
-│   ├── syndrome_features.py        # Geometric feature extraction for blind spots
-│   └── boundary_distance.py        # Minimum-flip distance to MLP failure
+│   ├── disagreement_map.py         # Builds the MLP vs MWPM four-way disagreement map (both_correct/both_wrong/mlp_blind_spot/mwpm_blind_spot) as an HDF5 file
+│   ├── syndrome_feature.py         # Geometric feature extraction (weight, spatial/temporal spread, isolation, boundary proximity) + logistic-regression characterization of blind spots vs SA catalogs
+│   ├── disagreement.h5             # Disagreement map produced by disagreement_map.py
+│   └── results/
+│       └── Regression/             # AUC heatmaps + feature-coefficient plots produced by syndrome_feature.py
 │
-├── experiments/
-│   ├── run_attack.py               # End-to-end SA attack pipeline
-│   ├── run_boundary_analysis.py    # End-to-end decision boundary pipeline
-│   └── run_evaluation.py           # Logical error rate curves across distances
+├── final_models/
+│   └── <NoiseModel>/d<D>/<param>/  # config.json + model.pth for each trained decoder (Depolarizing|FT, d3|d5|d7, 005|01)
 │
-├── notebook/
-│   ├── model_analysis.ipynb        # Loads a trained checkpoint (config.json + model.pth), plots loss curves & performance
-│   └── results_visualization.ipynb # Figures for the paper (not yet implemented)
-│
-├── requirements.txt
-├── stim.ipynb
+├── pyproject.toml / uv.lock / requirements.txt
 └── README.md
-
 ```
 
 ---
@@ -127,14 +123,7 @@ python decoder/mwpm_reference.py --metadata data/train_depolarizing.json --datas
 
 `--dataset`/`--samples` are mutually exclusive in practice. Rebuilds the circuit from `--metadata`, decodes the syndromes in `--dataset` with PyMatching, and reports the logical error rate; `--prediction-path` stores predictions, ground-truth labels, and the logical error rate as a `.npz`. If `--dataset` is omitted, `--samples` fresh shots are sampled directly from the rebuilt circuit instead. This is NOT to do when the goal is to compare to an MPL model as for fairness they should be trained on the same dataset.
 
-### 2c — Analyze a trained model
-```bash
-jupyter notebook notebook/model_analysis.ipynb
-```
-
-Loads a run's `config.json`/`model.pth` (from step 2), rebuilds the same model + validation split, and plots the training/validation loss curves and validation performance (confusion matrix, prediction-probability distribution).
-
-### 2d — Full worked example (data → MWPM baseline → tune → retrain)</summary>
+### 2c — Full worked example (data → MWPM baseline → tune → retrain)
 
 ```bash
 # 1. Generate data
@@ -154,22 +143,42 @@ uv run decoder/train.py --dataset example_run/dataset.npz --config example_run/t
 ```
 
 
-### 3 — Run the SA attack
+### 3 — Run the SA attack against one trained decoder
 
 ```bash
-python experiments/run_attack.py --distance 3 --budget 3 --restarts 50
+python attacks/simulated_annealing.py --config final_models/Depolarizing/d3/005/config.json --checkpoint final_models/Depolarizing/d3/005/model.pth --distance 3 --noise-type depolarizing --noise-default 0.005 --n-restarts 50 --output attacks/results/Depolarizing_d3_005.jsonl
 ```
-#todo write more 
 
-### 4 — Run the decision boundary analysis
+Sweeps every weight budget `W` from 1 to `distance//2 + 1`, running `--n-restarts` independent simulated-annealing chains per `W` to find the syndrome that maximises the decoder's BCE loss. `--output` is a `.jsonl` file: a `header` record (model/noise config) followed by one `result` record per `W` (attack success rate, the catalog of syndromes that fooled the decoder, and the single worst syndrome found).
+
+### 3a — Run the SA attack against every final model
 
 ```bash
-python experiments/run_boundary_analysis.py --distance 3 --shots 2000000
+python attacks/run_all_attacks.py --final-models-dir final_models --output-dir attacks/results --rounds 9
 ```
-#todo write more 
 
-### 5 — Run the syndrome feature 
-#todo write more
+Loops over every `<NoiseModel>/d<D>/<param>` combination under `--final-models-dir` (skipping any with no checkpoint) and calls the same attack as step 3 for each, writing one `<NoiseModel>_d<D>_<param>.jsonl` per model into `--output-dir`.
+
+### 4 — Build the MWPM vs MLP disagreement map
+
+```bash
+python analysis/disagreement_map.py --final-models-dir final_models --samples 100000 --rounds 9 --output analysis/disagreement.h5
+```
+
+For every `<NoiseModel>/d<D>/<param>` model, samples `--samples` syndromes from the noise model, decodes them with both MWPM (PyMatching) and the MLP checkpoint, and sorts every syndrome into one of four categories: `both_correct`, `both_wrong`, `mlp_blind_spot` (MWPM right, MLP wrong) and `mwpm_blind_spot` (MLP right, MWPM wrong). Writes one HDF5 group per model (`<NoiseModel>/d<D>/<param>/<category>`), each a plain array of syndromes.
+
+### 5 — Characterize blind spots vs the SA catalogs
+
+```bash
+python analysis/syndrome_feature.py --attacks_dir attacks/results --h5_input analysis/disagreement.h5 --rounds 9 --output_folder analysis/results
+```
+
+For every model, extracts 5 geometric features per syndrome (Hamming weight, spatial spread, temporal spread, isolation, boundary proximity) and fits a weight-matched logistic regression to see whether these features separate:
+- `mlp_blind_spot` vs `both_correct` (are natural MLP failures geometrically distinct from syndromes it gets right?)
+- `mlp_blind_spot` vs the SA catalog (do the adversarially-found syndromes look like natural blind spots?)
+- `both_correct` vs the SA catalog
+
+Writes AUC heatmaps and standardized-coefficient bar charts for each comparison to `<output_folder>/Regression/`.
 
 
 ---

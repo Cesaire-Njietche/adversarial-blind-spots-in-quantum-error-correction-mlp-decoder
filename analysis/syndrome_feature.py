@@ -366,14 +366,14 @@ if __name__ == "__main__":
         circuit = create_circuit(distance=distance, rounds=args.rounds, noise_type=noise_type, noise_default=noise_default)
         dem = circuit.detector_error_model(decompose_errors=True)
         ## Pblind vs Pboth
-        # clf_blind, scaler_blind, auc_blind = fit_logistic_regression(DM["mlp_blind_spot"], DM["both_correct"], dem)
-        # auc_matrix_DM_vs_both[row, col] = auc_blind
-        # coef_lookup_DM_vs_both[(noise_folder, distance, param_folder)] = clf_blind.coef_[0]#first line cuz only 1 usable label class
+        clf_blind, scaler_blind, auc_blind = fit_logistic_regression(DM["mlp_blind_spot"], DM["both_correct"], dem)
+        auc_matrix_DM_vs_both[row, col] = auc_blind
+        coef_lookup_DM_vs_both[(noise_folder, distance, param_folder)] = clf_blind.coef_[0]#first line cuz only 1 usable label class
 
         # ### Pblind vs C
-        # clf_sa, scaler_sa, auc_sa = fit_logistic_regression(DM["mlp_blind_spot"], syndromes_adversarial, dem)
-        # auc_matrix_DM_vs_sa[row, col] = auc_sa
-        # coef_lookup_DM_vs_sa[(noise_folder, distance, param_folder)] = clf_sa.coef_[0]
+        clf_sa, scaler_sa, auc_sa = fit_logistic_regression(DM["mlp_blind_spot"], syndromes_adversarial, dem)
+        auc_matrix_DM_vs_sa[row, col] = auc_sa
+        coef_lookup_DM_vs_sa[(noise_folder, distance, param_folder)] = clf_sa.coef_[0]
 
         ### Pboth vs C
         clf_both_vs_sa, scaler_both_vs_sa, auc_both_vs_sa = fit_logistic_regression(DM["both_correct"], syndromes_adversarial, dem)

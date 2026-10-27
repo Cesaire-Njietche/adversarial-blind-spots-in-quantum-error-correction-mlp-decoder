@@ -213,16 +213,70 @@ Defined in `data/noise_models.py` via `generate_noise_constants(noise_type, defa
 
 ---
 
-## Results (to be updated as experiments complete)
+## Results
 
-| Experiment | d=3 depol | d=3 FT | d=5 depol | d=5 FT |
+12 configurations were trained and evaluated: distances `d ∈ {3, 5, 7}` × noise models {Depolarizing (DP), circuit-level fault-tolerant (FT)} × physical error rates `p ∈ {0.005, 0.01}`. All models trained for `T=9` rounds on `10^6` Stim-sampled syndromes (800k/200k train/val split).
+
+### MLP vs. MWPM validation accuracy
+
+| Noise | d | p | MLP val. acc. | MWPM val. acc. |
 |---|---|---|---|---|
-| MLP logical error rate | — | — | — | — |
-| MWPM logical error rate | — | — | — | — |
-| MLP blind-spot fraction | — | — | — | — |
-| SA success rate (W=3) | — | — | — | — |
-| Median robustness radius | — | — | — | — |
+| DP | 3 | 0.005 | 99.85% | 99.83% |
+| DP | 3 | 0.01  | 99.38% | 99.32% |
+| DP | 5 | 0.005 | 99.95% | 99.99% |
+| DP | 5 | 0.01  | 99.82% | 99.92% |
+| DP | 7 | 0.005 | 99.88% | 100%   |
+| DP | 7 | 0.01  | 99.66% | 99.99% |
+| FT | 3 | 0.005 | 95.34% | 95.35% |
+| FT | 3 | 0.01  | 84.86% | 84.88% |
+| FT | 5 | 0.005 | 89.58% | 97.35% |
+| FT | 5 | 0.01  | 66.37% | 85.55% |
+| FT | 7 | 0.005 | 78.08% | 98.71% |
+| FT | 7 | 0.01  | 52.73% | 86.76% |
 
+Under depolarizing noise the MLP tracks MWPM closely at every distance. Under circuit-level FT noise the gap widens sharply with `d` and `p`, with the MLP falling as much as 34 points behind MWPM at `d=7, p=0.01`.
+
+### Simulated-annealing attack: success rate Φ(W) by weight budget
+
+Minimum budget `W` at which the attack reaches `Φ(W)=1.0` scales with distance under depolarizing noise (`W=2` for d=3, `W=3` for d=5, `W=4` for d=7, consistent with `⌊d/2⌋`), and is systematically lower under FT noise — several FT configurations already have `Φ(W)>0` at `W=1`, i.e. a single physical fault is enough to fool the decoder on some runs.
+
+| Noise | d | p | W=1 | W=2 | W=3 | W=4 |
+|---|---|---|---|---|---|---|
+| DP | 3 | 0.005 | 0.0 | 1.0 | — | — |
+| DP | 3 | 0.01  | 0.0 | 1.0 | — | — |
+| DP | 5 | 0.005 | 0.0 | 0.2 | 1.0 | — |
+| DP | 5 | 0.01  | 0.0 | 0.14| 1.0 | — |
+| DP | 7 | 0.005 | 0.0 | 0.0 | 0.98| 1.0 |
+| DP | 7 | 0.01  | 0.0 | 0.0 | 0.98| 1.0 |
+| FT | 3 | 0.005 | 0.0 | 1.0 | — | — |
+| FT | 3 | 0.01  | 0.0 | 1.0 | — | — |
+| FT | 5 | 0.005 | 0.0 | 1.0 | 1.0 | — |
+| FT | 5 | 0.01  | 1.0 | 1.0 | 1.0 | — |
+| FT | 7 | 0.005 | 1.0 | 1.0 | 1.0 | 1.0 |
+| FT | 7 | 0.01  | 1.0 | 1.0 | 1.0 | 1.0 |
+
+### Disagreement map: blind-spot fraction
+
+`𝒫_blind` (MWPM correct, MLP wrong) as a fraction of 500,000 test syndromes per configuration — ranges from 0.036% (DP, d=3, p=0.005) up to 40.8% (FT, d=7, p=0.01). It grows with both `d` and `p`, and is consistently larger under FT noise than DP at matched `(d, p)`.
+
+| Noise | d | p | 𝒫_both | 𝒫_blind | 𝒫_hard | 𝒫_MLP⁺ |
+|---|---|---|---|---|---|---|
+| DP | 3 | 0.005 | 0.997 | 3.58e-4 | 1.34e-3 | 4.78e-4 |
+| DP | 3 | 0.01  | 0.991 | 1.62e-3 | 4.88e-3 | 2.28e-3 |
+| DP | 5 | 0.005 | 0.999 | 4.88e-4 | 7e-5    | 1.6e-5  |
+| DP | 5 | 0.01  | 0.997 | 1.23e-3 | 6.7e-4  | 1.62e-4 |
+| DP | 7 | 0.005 | 0.998 | 1.19e-3 | 2e-6    | 6e-6    |
+| DP | 7 | 0.01  | 0.988 | 1.13e-2 | 3.4e-5  | 3e-5    |
+| FT | 3 | 0.005 | 0.936 | 1.69e-2 | 3e-2    | 1.6e-2  |
+| FT | 3 | 0.01  | 0.801 | 4.82e-2 | 0.102   | 4.8e-2  |
+| FT | 5 | 0.005 | 0.884 | 8.98e-2 | 1.44e-2 | 1.13e-2 |
+| FT | 5 | 0.01  | 0.594 | 0.26    | 7.59e-2 | 6.93e-2 |
+| FT | 7 | 0.005 | 0.772 | 0.213   | 6.86e-3 | 6.95e-3 |
+| FT | 7 | 0.01  | 0.458 | 0.408   | 6.57e-2 | 6.73e-2 |
+
+### Geometric characterization of blind spots
+
+A logistic regression on 5 geometric features (weight, spatial spread, temporal spread, isolation, boundary proximity) separates `𝒫_blind` from `𝒫_both` with AUC ranging from **0.974** (DP, d=3, p=0.005) down to **0.524** (FT, d=7, p=0.01) — blind spots are well-structured at small `d` `p` and degrade towards random as the code and noise rate grow, with weight as the dominant predictor. Separating the SA attack catalog from `𝒫_both` gives consistently high AUC (0.72–1.0), but the SA catalog and `𝒫_blind` themselves barely overlap : SA finds the sparse, minimum-weight failure boundary, while the disagreement map captures the physically realistic failure distribution.
 ---
 
 ## Papers

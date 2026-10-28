@@ -48,7 +48,7 @@ Experiments run on the **rotated surface code** at distances d=3, d=5 and d=7 un
 │
 ├── final_models/
 │   └── <NoiseModel>/d<D>/<param>/  # config.json + model.pth for each trained decoder (Depolarizing|FT, d3|d5|d7, 005|01)
-│
+├── Files_Paper                     # All notebooks, json, pngs, and .py's uses for the paper 
 ├── pyproject.toml / uv.lock / requirements.txt
 └── README.md
 ```

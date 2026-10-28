@@ -277,6 +277,8 @@ Minimum budget `W` at which the attack reaches `Φ(W)=1.0` scales with distance 
 ### Geometric characterization of blind spots
 
 A logistic regression on 5 geometric features (weight, spatial spread, temporal spread, isolation, boundary proximity) separates `𝒫_blind` from `𝒫_both` with AUC ranging from **0.974** (DP, d=3, p=0.005) down to **0.524** (FT, d=7, p=0.01) — blind spots are well-structured at small `d` `p` and degrade towards random as the code and noise rate grow, with weight as the dominant predictor. Separating the SA attack catalog from `𝒫_both` gives consistently high AUC (0.72–1.0), but the SA catalog and `𝒫_blind` themselves barely overlap : SA finds the sparse, minimum-weight failure boundary, while the disagreement map captures the physically realistic failure distribution.
+
+
 ---
 
 ## Papers

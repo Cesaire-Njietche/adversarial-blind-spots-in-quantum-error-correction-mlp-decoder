@@ -24,10 +24,14 @@ weight budget W:
     header: {"type": "header", "distance", "rounds", "noise_type",
               "noise_default", "n_restarts", "seed"}
     result: {"type": "result", "weight", "attack_rate", "catalog",
-              "best_S", "best_label"}
+              "catalog_labels", "best_S", "best_label"}
     "catalog" is the list of syndromes that fooled the decoder for that W
-    (each a list of 0/1 ints); "best_S"/"best_label" are the single
-    highest-BCE-loss syndrome found across all restarts for that W.
+    (each a list of 0/1 ints); "catalog_labels" is the matching list of
+    ground-truth labels, same order -- lets another decoder (e.g. MWPM) be
+    evaluated against these exact (syndrome, label) pairs later, see
+    analysis/evaluate_catalog_cross_decoder.py. "best_S"/"best_label" are
+    the single highest-BCE-loss syndrome found across all restarts for
+    that W.
 """
 import argparse
 import json
@@ -233,7 +237,7 @@ def attack(
         # compute attack success rate across restarts
         pred = (model(local_best_S) > 0.0).float()
         if pred != local_best_label:
-            adversarial_catalog.append(local_best_S)
+            adversarial_catalog.append((local_best_S, local_best_label))
             attack_rate += 1
 
         if (restart + 1) % 1 == 0:
@@ -243,8 +247,6 @@ def attack(
     attack_rate /= n_restarts
 
     return adversarial_catalog, attack_rate, best_S, best_label
-
-
 
 
 
@@ -291,7 +293,11 @@ def run_full_attack_for_model(model, dem, distance, output_path, rounds=9, noise
                 "type": "result",
                 "weight": w,
                 "attack_rate": attack_rate,
-                "catalog": [s.tolist() for s in catalog],
+                "catalog": [s.tolist() for s, _ in catalog],
+                # ground-truth label for each catalog entry, same order --
+                # needed to later check whether another decoder (e.g. MWPM)
+                # also fails on these same syndromes.
+                "catalog_labels": [int(l.item()) for _, l in catalog],
                 "best_S": best_S.tolist(),
                 "best_label": int(best_label.item()),
             }

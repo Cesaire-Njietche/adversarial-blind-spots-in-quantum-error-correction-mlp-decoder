@@ -336,7 +336,8 @@ A logistic regression on 5 geometric features (weight, spatial spread, temporal 
 
 ```bibtex
 @article{adversarial_qec_2026,
-  title   = {Failure Modes: Adversarial Blind Spots in Neural Quantum Error Correction Decoders},
+  title   = {Adversarial Blind Spots in Neural Quantum Error Correction
+Decoders: Failure Geometry},
   author  = {[Césaire Fangang Njietche, Martine Bellaïche, Victor Fairon]},
   journal = {PRX Quantum},
   year    = {2027}
